@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>汎用スケジュール表</title>
+<style>
+  body {
+    font-family: sans-serif;
+    margin: 20px;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    color: #333;
+  }
+  
+  /* --- 印刷用スタイル --- */
+  @media print {
+    .no-print { display: none !important; }
+    body { margin: 0; }
+    .content { border: none !important; background: transparent !important; }
+    .title-input { border: none !important; }
+    .print-header { display: flex !important; justify-content: space-between; align-items: flex-end; margin-bottom: 15px; border-bottom: 2px solid #333; padding-bottom: 5px; }
+    #print-title-display { font-size: 1.8em; font-weight: bold; }
+    #print-ym-display { font-size: 1.2em; font-weight: bold; }
+  }
+  .print-header { display: none; }
+
+  /* --- ヘッダー・メニュー周り（横一列に配置） --- */
+  .top-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center; /* 縦位置を中央揃え */
+    margin-bottom: 20px;
+    gap: 15px;
+    position: relative;
+  }
+  
+  /* 左側：タイトル（残り領域を占有） */
+  .title-input {
+    flex-grow: 1;
+    font-size: 1.8em;
+    font-weight: bold;
+    padding: 8px 15px;
+    border: 2px solid #ccc;
+    border-radius: 8px;
+    outline: none;
+    background: #fff;
+    min-width: 200px; /* 縮みすぎ防止 */
+  }
+  .title-input:focus { border-color: #666; }
+
+  /* 中央：年月ナビゲーション（右寄せブロックの一部） */
+  .nav-area {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0; /* 縮まないようにする */
+  }
+  .nav-area button {
+    padding: 8px 15px;
+    font-size: 1.2em;
+    cursor: pointer;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    background: #f9f9f9;
+  }
+  .nav-area button:hover { background: #eee; }
+  .ym-display {
+    display: flex;
+    align-items: center;
+    font-size: 1.2em;
+    font-weight: bold;
+    gap: 5px;
+  }
+  .ym-display input[type="number"] {
+    width: 80px;
+    font-size: 1em;
+    font-weight: bold;
+    text-align: center;
+    padding: 5px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+  }
+
+  /* 右端：ハンバーガーメニュー */
+  .menu-wrapper {
+    position: relative;
+    flex-shrink: 0; /* 縮まないようにする */
+  }
+  .hamburger-btn {
+    padding: 10px 15px;
+    font-size: 1.1em;
+    background: #f0f0f0;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    cursor: pointer;
+    font-weight: bold;
+  }
+  .hamburger-btn:hover { background: #e0e0e0; }
+  .dropdown-menu {
+    position: absolute;
+    top: 110%;
+    right: 0;
+    width: 250px;
+    background: #fff;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    padding: 15px;
+    z-index: 100;
+  }
+  .hidden { display: none; }
+  .menu-item { margin-bottom: 15px; }
+  .menu-item:last-child { margin-bottom: 0; border-top: 1px solid #eee; padding-top: 15px; }
+  .menu-item label { display: block; margin-bottom: 5px; cursor: pointer; }
+  .menu-item button { width: 100%; margin-bottom: 5px; padding: 8px; cursor: pointer; }
+  
+  /* 保存メッセージを右上にふわっと出す */
+  #sys-msg {
+    position: absolute; 
+    top: -25px; 
+    right: 0; 
+    color: green; 
+    font-size: 0.9em;
+    opacity: 0; 
+    transition: opacity 0.5s; 
+    font-weight: bold;
+  }
+
+  /* --- カレンダー本体 --- */
+  table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  th, td { border: 1px solid #333; padding: 0; vertical-align: top; }
+  th { text-align: center; background: #e9e9e9; padding: 10px; font-weight: normal; }
+  
+  .cell-inner {
+    display: flex;
+    flex-direction: column;
+    min-height: 130px;
+    padding: 5px;
+    box-sizing: border-box;
+  }
+  
+  .other-month .date-left span,
+  .other-month .rokuyo,
+  .other-month .holiday-name { color: #a0a0a0 !important; }
+  .other-month .content { color: #777; }
+  
+  .sat { background-color: #e0ffff !important; }
+  .sun, .holiday { background-color: #ffe4e1 !important; }
+  
+  .date-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 5px; font-weight: bold; font-size: 1.1em; }
+  .date-left { display: flex; align-items: baseline; gap: 5px; }
+  .rokuyo { font-size: 0.7em; color: #666; font-weight: normal; }
+  .holiday-name { font-size: 0.75em; color: #d32f2f; font-weight: normal; padding: 2px; cursor: text; }
+  
+  .content {
+    flex-grow: 1; outline: none; line-height: 1.6; font-size: 0.9em;
+    cursor: text; border: 1px dashed transparent; padding: 5px; min-height: 80px;
+  }
+  .content:hover { background-color: rgba(255, 255, 255, 0.5); border: 1px dashed #aaa; }
+  .content:focus { background-color: #fff; border: 1px solid #333; }
+</style>
+</head>
+<body>
+
+<!-- 印刷用ヘッダー -->
+<div class="print-header">
+  <div id="print-title-display">汎用スケジュール表</div>
+  <div id="print-ym-display"></div>
+</div>
+
+<!-- 最上部：タイトル ＋ 年月 ＋ メニュー -->
+<div class="top-header no-print">
+  <span id="sys-msg">✓ 保存しました</span>
+  
+  <!-- 左：タイトル -->
+  <input type="text" id="calendar-title" class="title-input" value="汎用スケジュール表" oninput="updateTitle(this.value)">
+  
+  <!-- 中央：年月 -->
+  <div class="nav-area">
+    <button onclick="changeMonth(-1)">◀</button>
+    <div class="ym-display">
+      <input type="number" id="year" value="2026"> 年
+      <input type="number" id="month" value="5" min="1" max="12"> 月
+    </div>
+    <button onclick="changeMonth(1)">▶</button>
+  </div>
+
+  <!-- 右：メニュー -->
+  <div class="menu-wrapper">
+    <button class="hamburger-btn" onclick="toggleMenu()">☰ メニュー</button>
+    <div id="settings-menu" class="dropdown-menu hidden">
+      <div class="menu-item">
+        <strong>カレンダー開始曜日</strong>
+        <label><input type="radio" name="startDay" value="1" onchange="saveSetting('startDay', this.value); generateCalendar()"> 月曜始まり</label>
+        <label><input type="radio" name="startDay" value="0" onchange="saveSetting('startDay', this.value); generateCalendar()"> 日曜始まり</label>
+      </div>
+      <div class="menu-item">
+        <strong>表示設定</strong>
+        <label><input type="checkbox" id="show-rokuyo" onchange="saveSetting('rokuyo', this.checked); generateCalendar()"> 六曜（大安など）を表示</label>
+      </div>
+      <div class="menu-item">
+        <strong>データ移行・バックアップ</strong>
+        <button onclick="exportData()">↑ エクスポート (保存)</button>
+        <input type="file" id="import-file" style="display:none" accept=".json" onchange="importData(event)">
+        <button onclick="document.getElementById('import-file').click()">↓ インポート (読込)</button>
+      </div>
+      <div class="menu-item">
+        <button onclick="window.print()" style="background:#333; color:#fff; font-weight:bold;">🖨️ 印刷する</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- カレンダー本体 -->
+<table id="calendar">
+  <thead id="cal-head"></thead>
+  <tbody id="cal-body"></tbody>
+</table>
+
+<script>
+  let holidays = {};
+  let sysMsgTimeout;
+
+  const today = new Date();
+  document.getElementById('year').value = today.getFullYear();
+  document.getElementById('month').value = today.getMonth() + 1;
+
+  const savedStartDay = localStorage.getItem('schedule_startDay') || '0';
+  document.querySelector(`input[name="startDay"][value="${savedStartDay}"]`).checked = true;
+
+  const savedRokuyo = localStorage.getItem('schedule_rokuyo') === 'true';
+  document.getElementById('show-rokuyo').checked = savedRokuyo;
+
+  const savedTitle = localStorage.getItem('schedule_title') || '汎用スケジュール表';
+  document.getElementById('calendar-title').value = savedTitle;
+  document.title = savedTitle;
+
+  function toggleMenu() { document.getElementById('settings-menu').classList.toggle('hidden'); }
+  
+  document.addEventListener('click', function(e) {
+    const menu = document.getElementById('settings-menu');
+    const btn = document.querySelector('.hamburger-btn');
+    if (!menu.contains(e.target) && e.target !== btn) {
+      menu.classList.add('hidden');
+    }
+  });
+
+  document.getElementById('year').addEventListener('change', generateCalendar);
+  document.getElementById('month').addEventListener('change', generateCalendar);
+
+  function saveSetting(key, val) {
+    localStorage.setItem(`schedule_${key}`, val);
+    showSysMsg('✓ 設定を保存しました');
+  }
+
+  function updateTitle(val) {
+    document.title = val || '汎用スケジュール表';
+    localStorage.setItem('schedule_title', val);
+    showSysMsg('✓ タイトルを保存しました');
+  }
+
+  function showSysMsg(text) {
+    const msg = document.getElementById('sys-msg');
+    msg.textContent = text;
+    msg.style.opacity = 1;
+    clearTimeout(sysMsgTimeout);
+    sysMsgTimeout = setTimeout(() => { msg.style.opacity = 0; }, 2000);
+  }
+
+  function exportData() {
+    const data = {};
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key.startsWith('schedule_')) {
+        data[key] = localStorage.getItem(key);
+      }
+    }
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const currentTitle = document.getElementById('calendar-title').value || 'schedule';
+    a.download = `${currentTitle}_data.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    document.getElementById('settings-menu').classList.add('hidden');
+  }
+
+  function importData(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      try {
+        const data = JSON.parse(e.target.result);
+        for (const key in data) {
+          if (key.startsWith('schedule_')) {
+            localStorage.setItem(key, data[key]);
+          }
+        }
+        alert('データをインポートしました。画面を更新します。');
+        location.reload();
+      } catch (err) {
+        alert('ファイルの読み込みに失敗しました。正しいJSONファイルを選択してください。');
+      }
+    };
+    reader.readAsText(file);
+    event.target.value = '';
+  }
+
+  const rokuyoList = ["大安", "赤口", "先勝", "友引", "先負", "仏滅"];
+  function getRokuyoApprox(y, m, d) {
+    const jd = Math.floor(new Date(y, m - 1, d).getTime() / 86400000);
+    return rokuyoList[Math.abs(jd) % 6]; 
+  }
+
+  fetch('https://holidays-jp.github.io/api/v1/date.json')
+    .then(response => response.json())
+    .then(data => { holidays = data; generateCalendar(); })
+    .catch(error => { console.error('祝日API失敗:', error); generateCalendar(); });
+
+  function changeMonth(offset) {
+    let year = parseInt(document.getElementById('year').value);
+    let month = parseInt(document.getElementById('month').value);
+    month += offset;
+    if (month > 12) { month = 1; year++; }
+    if (month < 1) { month = 12; year--; }
+    document.getElementById('year').value = year;
+    document.getElementById('month').value = month;
+    generateCalendar();
+  }
+
+  function generateCalendar() {
+    const year = parseInt(document.getElementById('year').value);
+    const month = parseInt(document.getElementById('month').value);
+    const isMondayStart = document.querySelector('input[name="startDay"][value="1"]').checked;
+    const showRokuyo = document.getElementById('show-rokuyo').checked;
+    
+    document.getElementById('print-title-display').textContent = document.getElementById('calendar-title').value || '汎用スケジュール表';
+    document.getElementById('print-ym-display').textContent = `${year}年 ${month}月`;
+
+    const head = document.getElementById('cal-head');
+    const daysMon = [{n:'月', c:''}, {n:'火', c:''}, {n:'水', c:''}, {n:'木', c:''}, {n:'金', c:''}, {n:'土', c:'sat'}, {n:'日', c:'sun'}];
+    const daysSun = [{n:'日', c:'sun'}, {n:'月', c:''}, {n:'火', c:''}, {n:'水', c:''}, {n:'木', c:''}, {n:'金', c:''}, {n:'土', c:'sat'}];
+    const daysArr = isMondayStart ? daysMon : daysSun;
+    
+    let headHtml = '<tr>';
+    daysArr.forEach(d => { headHtml += `<th class="${d.c}">${d.n}</th>`; });
+    headHtml += '</tr>';
+    head.innerHTML = headHtml;
+
+    const firstDay = new Date(year, month - 1, 1);
+    let startDayIndex = firstDay.getDay();
+    if (isMondayStart) { startDayIndex = (startDayIndex + 6) % 7; }
+
+    let currentDate = new Date(firstDay);
+    currentDate.setDate(firstDay.getDate() - startDayIndex);
+
+    const tbody = document.getElementById('cal-body');
+    tbody.innerHTML = '';
+
+    for (let week = 0; week < 6; week++) {
+      const tr = document.createElement('tr');
+      for (let day = 0; day < 7; day++) {
+        const y = currentDate.getFullYear();
+        const m = String(currentDate.getMonth() + 1).padStart(2, '0');
+        const d = String(currentDate.getDate()).padStart(2, '0');
+        const dateStr = `${y}-${m}-${d}`;
+
+        const td = document.createElement('td');
+        const weekDay = currentDate.getDay();
+        if (weekDay === 6) td.classList.add('sat');
+        if (weekDay === 0) td.classList.add('sun');
+
+        const savedContent = localStorage.getItem(`schedule_content_${dateStr}`) || '';
+        let holName = localStorage.getItem(`schedule_hol_${dateStr}`);
+        if (holName === null) holName = holidays[dateStr] || ''; 
+        
+        let rokuyoHtml = '';
+        if (showRokuyo) {
+          rokuyoHtml = `<span class="rokuyo">${getRokuyoApprox(y, parseInt(m), parseInt(d))}</span>`;
+        }
+
+        const isCurrentMonth = currentDate.getMonth() === month - 1;
+        const monthClass = isCurrentMonth ? '' : 'other-month';
+
+        if (holName && isCurrentMonth) td.classList.add('holiday');
+
+        td.innerHTML = `
+          <div class="cell-inner ${monthClass}">
+            <div class="date-header">
+              <div class="date-left">
+                <span>${currentDate.getDate()}</span>
+                ${rokuyoHtml}
+              </div>
+              <span class="holiday-name" contenteditable="true" data-type="hol" data-date="${dateStr}">${holName}</span>
+            </div>
+            <div class="content" contenteditable="true" data-type="content" data-date="${dateStr}">${savedContent}</div>
+          </div>
+        `;
+        
+        tr.appendChild(td);
+        currentDate.setDate(currentDate.getDate() + 1);
+      }
+      tbody.appendChild(tr);
+      if (currentDate.getMonth() !== month - 1 && week >= 3) break;
+    }
+  }
+
+  document.addEventListener('input', function(e) {
+    if (e.target.hasAttribute('contenteditable')) {
+      const dateStr = e.target.getAttribute('data-date');
+      const type = e.target.getAttribute('data-type');
+      localStorage.setItem(`schedule_${type}_${dateStr}`, e.target.innerHTML);
+      showSysMsg('✓ 自動保存しました');
+    }
+  });
+
+</script>
+</body>
+</html>
