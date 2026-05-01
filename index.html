@@ -31,7 +31,7 @@
     .menu-wrapper { position: relative; flex-shrink: 0; }
     .hamburger-btn { padding: 10px 15px; font-size: 1.1em; background: #fff; border: 1px solid var(--border); border-radius: 5px; cursor: pointer; font-weight: bold; color: var(--txt-clr); }
     .hamburger-btn:hover { background: #f0f0f0; }
-    .dropdown-menu { display: none; position: absolute; top: 110%; right: 0; width: 260px; background: #fff; border: 1px solid var(--border); border-radius: 5px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); padding: 15px; z-index: 1000; color: #333; }
+    .dropdown-menu { display: none; position: absolute; top: 110%; right: 0; width: 280px; background: #fff; border: 1px solid var(--border); border-radius: 5px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); padding: 15px; z-index: 1000; color: #333; max-height: 80vh; overflow-y: auto; }
     .dropdown-menu.show { display: block; }
     .menu-item { margin-bottom: 15px; font-size: 14px; }
     .menu-item:last-child { margin-bottom: 0; border-top: 1px solid #eee; padding-top: 15px; }
@@ -75,7 +75,6 @@
     .cal-content:hover { background-color: rgba(0,0,0,0.02); border-color: #ccc; }
     .cal-content:focus { background-color: #fff; border: 1px solid var(--p-clr); }
 
-    /* Calendar Task Items */
     .cal-task-item { font-size: 11px; padding: 3px 5px; border-radius: 4px; margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; background-color: var(--p-clr); color: white; cursor: pointer; box-shadow: 0 1px 2px rgba(0,0,0,0.1); display: block; border-left: 3px solid rgba(0,0,0,0.3); }
     .cal-task-item:hover { filter: brightness(1.1); }
     .cal-task-done { background-color: #95a5a6; border-left-color: #7f8c8d; text-decoration: line-through; }
@@ -124,17 +123,14 @@
         .view-container { border: none; }
         .view-section { padding: 0; box-shadow: none; }
         
-        /* 共通印刷ヘッダー */
         .print-header { display: flex !important; justify-content: space-between; align-items: flex-end; margin-bottom: 10px; border-bottom: 2px solid #333; padding-bottom: 5px; color: #000; }
         #print-title-display { font-size: 1.5em; font-weight: bold; }
         #print-ym-display { font-size: 1.1em; font-weight: bold; }
 
-        /* カレンダー印刷 */
         .cal-table th, .cal-table td { border: 1px solid #000 !important; color: #000 !important; }
         .cell-inner { min-height: 100px; background: transparent !important; }
         .cal-content { border: none !important; min-height: 60px; }
 
-        /* ToDo印刷 */
         .todo-table { table-layout: fixed; width: 100% !important; min-width: 100% !important; }
         .todo-table th, .todo-table td { border: 1px solid #000 !important; color: #000 !important; background: transparent !important; font-size: 10pt !important; }
         body.print-detailed .detail-print-row { display: table-row !important; }
@@ -150,7 +146,6 @@
   <div id="print-ym-display"></div>
 </div>
 
-<!-- 最上部：タイトル ＋ タブ ＋ メニュー -->
 <div class="top-header">
     <span id="sys-msg">✓ 保存しました</span>
     
@@ -182,13 +177,18 @@
                 <label style="margin-top:8px;"><input type="checkbox" id="show-rokuyo" onchange="saveSetting('rokuyo', this.checked); renderCalendar()"> 六曜（大安など）を表示</label>
             </div>
             <div class="menu-item">
-                <strong>💾 データ管理</strong>
-                <button onclick="exportData()">↑ エクスポート (保存)</button>
-                <input type="file" id="import-file" style="display:none" accept=".json" onchange="importData(event)">
-                <button onclick="document.getElementById('import-file').click()">↓ インポート (読込)</button>
+                <strong>📊 Excel出力 (CSV)</strong>
+                <button onclick="exportCalendarCSV()">📅 表示中の月をExcel出力</button>
+                <button onclick="exportTodoCSV()">✅ ToDoリストをExcel出力</button>
             </div>
             <div class="menu-item">
-                <strong>🖨️ 印刷メニュー</strong>
+                <strong>💾 データ保存・移行</strong>
+                <button onclick="exportData()">↑ バックアップ保存 (JSON)</button>
+                <input type="file" id="import-file" style="display:none" accept=".json" onchange="importData(event)">
+                <button onclick="document.getElementById('import-file').click()">↓ データ読込 (JSON)</button>
+            </div>
+            <div class="menu-item">
+                <strong>🖨️ 紙に印刷する</strong>
                 <button onclick="printApp(false)" style="background:#333; color:#fff; font-weight:bold;">現在の画面を印刷</button>
                 <button onclick="printApp(true)" id="printDetailBtn" style="display:none; background:#555; color:#fff;">ToDoを印刷 (詳細含む)</button>
             </div>
@@ -320,27 +320,22 @@
 
     // --- Initialization ---
     window.onload = () => {
-        // Load combined data
         const loaded = localStorage.getItem(STORAGE_KEY);
         if (loaded) {
             appData = JSON.parse(loaded);
         } else {
-            // マイグレーション (旧バージョンのデータがあれば引き継ぐ)
             migrateOldData();
         }
         
         if(!appData.tasks) appData.tasks = [];
         if(!appData.settings) appData.settings = {};
 
-        // Apply Settings
         applySettings();
 
-        // Calendar Init
         const today = new Date();
         document.getElementById('calYear').value = today.getFullYear();
         document.getElementById('calMonth').value = today.getMonth() + 1;
         
-        // Fetch Holidays
         fetch('https://holidays-jp.github.io/api/v1/date.json')
             .then(r => r.json())
             .then(data => { holidays = data; renderCalendar(); })
@@ -355,13 +350,10 @@
     function migrateOldData() {
         const oldTodo = localStorage.getItem('high_func_todo_data');
         if(oldTodo) appData.tasks = JSON.parse(oldTodo).tasks || [];
-        
         appData.settings.title = localStorage.getItem('schedule_title') || '統合スケジュール＆タスク';
         appData.settings.startDay = localStorage.getItem('schedule_startDay') || '0';
         appData.settings.rokuyo = localStorage.getItem('schedule_rokuyo') === 'true';
         appData.settings.theme = 'theme-modern';
-
-        // カレンダーのフリーテキストを移行
         for (let i = 0; i < localStorage.length; i++) {
             const key = localStorage.key(i);
             if (key.startsWith('schedule_content_') || key.startsWith('schedule_hol_')) {
@@ -374,10 +366,8 @@
     function applySettings() {
         document.getElementById('appTitle').value = appData.settings.title || '統合スケジュール＆タスク';
         document.title = document.getElementById('appTitle').value;
-        
         changeTheme(appData.settings.theme || 'theme-modern', false);
         document.getElementById('themeSelect').value = appData.settings.theme || 'theme-modern';
-        
         document.querySelector(`input[name="startDay"][value="${appData.settings.startDay || '0'}"]`).checked = true;
         document.getElementById('show-rokuyo').checked = !!appData.settings.rokuyo;
     }
@@ -395,30 +385,15 @@
         sysMsgTimeout = setTimeout(() => { msg.style.opacity = 0; }, 2000);
     }
 
-    function updateTitle(val) {
-        appData.settings.title = val;
-        document.title = val || 'アプリ';
-        saveApp();
-    }
-
-    function changeTheme(theme, save = true) {
-        document.body.className = theme;
-        if(save) { appData.settings.theme = theme; saveApp(); }
-    }
-
-    function saveSetting(key, val) {
-        appData.settings[key] = val;
-        saveApp();
-    }
-
+    function updateTitle(val) { appData.settings.title = val; document.title = val || 'アプリ'; saveApp(); }
+    function changeTheme(theme, save = true) { document.body.className = theme; if(save) { appData.settings.theme = theme; saveApp(); } }
+    function saveSetting(key, val) { appData.settings[key] = val; saveApp(); }
     function toggleMenu() { document.getElementById('settings-menu').classList.toggle('show'); }
     
     document.addEventListener('click', (e) => {
         const menu = document.getElementById('settings-menu');
         const btn = document.querySelector('.hamburger-btn');
-        if (!menu.contains(e.target) && e.target !== btn) {
-            menu.classList.remove('show');
-        }
+        if (!menu.contains(e.target) && e.target !== btn) menu.classList.remove('show');
     });
 
     function switchTab(tab) {
@@ -427,32 +402,82 @@
         document.querySelectorAll('.view-section').forEach(v => v.classList.remove('active'));
         document.getElementById('tab-' + tab).classList.add('active');
         document.getElementById('view-' + tab).classList.add('active');
-        
-        // メニュー項目の制御
         document.getElementById('printDetailBtn').style.display = (tab === 'todo') ? 'block' : 'none';
         document.querySelectorAll('.cal-setting-item').forEach(el => el.style.display = (tab === 'cal') ? 'block' : 'none');
-        
         if(tab === 'cal') renderCalendar();
+    }
+
+    // --- Excel(CSV) Export ---
+    function exportTodoCSV() {
+        document.getElementById('settings-menu').classList.remove('show');
+        
+        // 画面に表示されているタスクを抽出（フィルタ・ソート状態を反映）
+        const rows = Array.from(document.querySelectorAll('#todoBody tr:not(.detail-print-row)'));
+        const exportTasks = rows.map(r => appData.tasks.find(t => t.id === r.dataset.id)).filter(t => t);
+        
+        if(exportTasks.length === 0) { alert("出力するデータがありません。"); return; }
+
+        const headers = ['No', '起票日', '分類', '件名', '詳細説明', '依頼者', '優先度', '状況', '締切予定日', '完了日', '備考'];
+        let csvContent = '\uFEFF'; // BOM for Excel UTF-8
+        csvContent += headers.map(h => `"${h}"`).join(',') + '\n';
+        
+        exportTasks.forEach(t => {
+            const row = [ t.no, t.date, t.category, t.title, t.detail, t.requester, t.priority, t.status, t.dueDate, t.completionDate, t.note ];
+            const escapedRow = row.map(cell => {
+                if (cell === undefined || cell === null) return '""';
+                return `"${String(cell).replace(/"/g, '""')}"`;
+            });
+            csvContent += escapedRow.join(',') + '\n';
+        });
+        
+        triggerDownload(csvContent, `${document.getElementById('appTitle').value}_ToDo.csv`);
+    }
+
+    function exportCalendarCSV() {
+        document.getElementById('settings-menu').classList.remove('show');
+        const year = parseInt(document.getElementById('calYear').value);
+        const month = parseInt(document.getElementById('calMonth').value);
+        const lastDate = new Date(year, month, 0).getDate();
+        
+        const headers = ['日付', '祝日・イベント', 'フリーメモ', 'タスク'];
+        let csvContent = '\uFEFF';
+        csvContent += headers.map(h => `"${h}"`).join(',') + '\n';
+        
+        for(let d = 1; d <= lastDate; d++) {
+            const dateStr = `${year}-${String(month).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+            const hol = appData.settings[`schedule_hol_${dateStr}`] || holidays[dateStr] || '';
+            const content = appData.settings[`schedule_content_${dateStr}`] || '';
+            // HTMLの改行タグを通常の改行に変換し、その他のタグを除去
+            const cleanContent = content.replace(/<br\s*[\/]?>/gi, '\n').replace(/<[^>]*>?/gm, '');
+            
+            const dayTasks = appData.tasks.filter(t => t.showCalendar && t.dueDate === dateStr).map(t => `・${t.title} (${t.status})`).join('\n');
+            
+            const row = [dateStr, hol, cleanContent, dayTasks];
+            const escapedRow = row.map(cell => `"${String(cell).replace(/"/g, '""')}"`);
+            csvContent += escapedRow.join(',') + '\n';
+        }
+        triggerDownload(csvContent, `${document.getElementById('appTitle').value}_${year}年${month}月.csv`);
+    }
+
+    function triggerDownload(content, filename) {
+        const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = filename; a.click();
+        URL.revokeObjectURL(url);
     }
 
     // --- Calendar Logic ---
     const rokuyoList = ["大安", "赤口", "先勝", "友引", "先負", "仏滅"];
-    function getRokuyoApprox(y, m, d) {
-        const jd = Math.floor(new Date(y, m - 1, d).getTime() / 86400000);
-        return rokuyoList[Math.abs(jd) % 6]; 
-    }
+    function getRokuyoApprox(y, m, d) { return rokuyoList[Math.abs(Math.floor(new Date(y, m - 1, d).getTime() / 86400000)) % 6]; }
 
     function setupListeners() {
         document.getElementById('calYear').addEventListener('change', renderCalendar);
         document.getElementById('calMonth').addEventListener('change', renderCalendar);
-        
-        // カレンダー内のテキスト保存
         document.addEventListener('input', function(e) {
             if (e.target.hasAttribute('contenteditable')) {
-                const dateStr = e.target.getAttribute('data-date');
-                const type = e.target.getAttribute('data-type');
-                appData.settings[`schedule_${type}_${dateStr}`] = e.target.innerHTML;
-                saveApp(true); // silent
+                appData.settings[`schedule_${e.target.getAttribute('data-type')}_${e.target.getAttribute('data-date')}`] = e.target.innerHTML;
+                saveApp(true);
             }
         });
     }
@@ -463,8 +488,7 @@
         m += offset;
         if (m > 12) { m = 1; y++; }
         if (m < 1) { m = 12; y--; }
-        document.getElementById('calYear').value = y;
-        document.getElementById('calMonth').value = m;
+        document.getElementById('calYear').value = y; document.getElementById('calMonth').value = m;
         renderCalendar();
     }
 
@@ -474,27 +498,19 @@
         const isMonStart = appData.settings.startDay === '1';
         const showRokuyo = appData.settings.rokuyo;
         
-        // 印刷用ヘッダーの更新
         document.getElementById('print-title-display').textContent = document.getElementById('appTitle').value;
         document.getElementById('print-ym-display').textContent = currentTab === 'cal' ? `${year}年 ${month}月` : '';
 
-        // Header
         const head = document.getElementById('cal-head');
-        const daysMon = [{n:'月', c:''}, {n:'火', c:''}, {n:'水', c:''}, {n:'木', c:''}, {n:'金', c:''}, {n:'土', c:'sat'}, {n:'日', c:'sun'}];
-        const daysSun = [{n:'日', c:'sun'}, {n:'月', c:''}, {n:'火', c:''}, {n:'水', c:''}, {n:'木', c:''}, {n:'金', c:''}, {n:'土', c:'sat'}];
-        const daysArr = isMonStart ? daysMon : daysSun;
-        let headHtml = '<tr>'; daysArr.forEach(d => { headHtml += `<th class="${d.c}">${d.n}</th>`; }); headHtml += '</tr>';
+        const daysMon = [{n:'月',c:''},{n:'火',c:''},{n:'水',c:''},{n:'木',c:''},{n:'金',c:''},{n:'土',c:'sat'},{n:'日',c:'sun'}];
+        const daysSun = [{n:'日',c:'sun'},{n:'月',c:''},{n:'火',c:''},{n:'水',c:''},{n:'木',c:''},{n:'金',c:''},{n:'土',c:'sat'}];
+        let headHtml = '<tr>'; (isMonStart ? daysMon : daysSun).forEach(d => { headHtml += `<th class="${d.c}">${d.n}</th>`; }); headHtml += '</tr>';
         head.innerHTML = headHtml;
 
-        // Body
-        const tbody = document.getElementById('cal-body');
-        tbody.innerHTML = '';
-        
+        const tbody = document.getElementById('cal-body'); tbody.innerHTML = '';
         const firstDay = new Date(year, month - 1, 1);
-        let startIdx = firstDay.getDay();
-        if (isMonStart) startIdx = (startIdx + 6) % 7;
-        let currDate = new Date(firstDay);
-        currDate.setDate(firstDay.getDate() - startIdx);
+        let startIdx = firstDay.getDay(); if (isMonStart) startIdx = (startIdx + 6) % 7;
+        let currDate = new Date(firstDay); currDate.setDate(firstDay.getDate() - startIdx);
 
         for (let week = 0; week < 6; week++) {
             const tr = document.createElement('tr');
@@ -505,9 +521,7 @@
                 const dateStr = `${y}-${m}-${d}`;
 
                 const td = document.createElement('td');
-                const wd = currDate.getDay();
-                if (wd === 6) td.classList.add('sat');
-                if (wd === 0) td.classList.add('sun');
+                const wd = currDate.getDay(); if (wd === 6) td.classList.add('sat'); if (wd === 0) td.classList.add('sun');
 
                 const savedContent = appData.settings[`schedule_content_${dateStr}`] || '';
                 let holName = appData.settings[`schedule_hol_${dateStr}`];
@@ -516,16 +530,12 @@
                 const isCurrMonth = currDate.getMonth() === month - 1;
                 if (holName && isCurrMonth) td.classList.add('holiday');
                 
-                let rokuyo = '';
-                if (showRokuyo) rokuyo = `<span class="rokuyo">${getRokuyoApprox(y, parseInt(m), parseInt(d))}</span>`;
+                let rokuyo = ''; if (showRokuyo) rokuyo = `<span class="rokuyo">${getRokuyoApprox(y, parseInt(m), parseInt(d))}</span>`;
 
-                // ToDo tasks for this day
                 let tasksHtml = '';
-                const dayTasks = appData.tasks.filter(t => t.showCalendar && t.dueDate === dateStr);
-                dayTasks.forEach(t => {
+                appData.tasks.filter(t => t.showCalendar && t.dueDate === dateStr).forEach(t => {
                     const statusCls = t.status === '完了' ? 'cal-task-done' : '';
-                    const icon = t.status === '完了' ? '✅' : '📝';
-                    tasksHtml += `<div class="cal-task-item ${statusCls}" onclick="jumpToTask('${t.id}')" title="${t.title}">${icon} ${t.title}</div>`;
+                    tasksHtml += `<div class="cal-task-item ${statusCls}" onclick="jumpToTask('${t.id}')" title="${t.title}">${t.status === '完了' ? '✅' : '📝'} ${t.title}</div>`;
                 });
 
                 td.innerHTML = `
@@ -538,30 +548,22 @@
                         <div class="cal-tasks-area">${tasksHtml}</div>
                     </div>
                 `;
-                tr.appendChild(td);
-                currDate.setDate(currDate.getDate() + 1);
+                tr.appendChild(td); currDate.setDate(currDate.getDate() + 1);
             }
-            tbody.appendChild(tr);
-            if (currDate.getMonth() !== month - 1 && week >= 3) break;
+            tbody.appendChild(tr); if (currDate.getMonth() !== month - 1 && week >= 3) break;
         }
     }
 
-    function jumpToTask(id) {
-        switchTab('todo');
-        openTodoModal(id);
-    }
+    function jumpToTask(id) { switchTab('todo'); openTodoModal(id); }
 
     // --- ToDo Logic ---
-    function checkCompletion() {
-        if(document.getElementById('taskCompletionDate').value) document.getElementById('taskStatus').value = '完了';
-    }
+    function checkCompletion() { if(document.getElementById('taskCompletionDate').value) document.getElementById('taskStatus').value = '完了'; }
 
     function openTodoModal(id = null) {
         document.getElementById('taskForm').reset();
         const delBtn = document.getElementById('deleteBtn');
         if (id) {
-            const task = appData.tasks.find(t => t.id === id);
-            if(!task) return;
+            const task = appData.tasks.find(t => t.id === id); if(!task) return;
             document.getElementById('taskId').value = task.id;
             ['Date', 'Category', 'Title', 'Detail', 'Requester', 'Priority', 'DueDate', 'CompletionDate', 'Status', 'Note'].forEach(k => {
                 document.getElementById('task' + k).value = task[k.charAt(0).toLowerCase() + k.slice(1)] || '';
@@ -581,39 +583,29 @@
     function closeTodoModal() { document.getElementById('todoModal').style.display = 'none'; }
 
     document.getElementById('taskForm').onsubmit = (e) => {
-        e.preventDefault();
-        const id = document.getElementById('taskId').value;
+        e.preventDefault(); const id = document.getElementById('taskId').value;
         const taskData = { id: id || Date.now().toString() };
         ['date', 'category', 'title', 'detail', 'requester', 'priority', 'dueDate', 'completionDate', 'status', 'note'].forEach(k => {
             taskData[k] = document.getElementById('task' + k.charAt(0).toUpperCase() + k.slice(1)).value;
         });
         taskData.showCalendar = document.getElementById('taskShowCalendar').checked;
-        
         const idx = appData.tasks.findIndex(t => t.id === id);
         if (idx >= 0) appData.tasks[idx] = taskData; else appData.tasks.push(taskData);
-        
-        reassignNumbers(); saveApp(); closeTodoModal(); applyFilters();
-        if(currentTab === 'cal') renderCalendar();
+        reassignNumbers(); saveApp(); closeTodoModal(); applyFilters(); if(currentTab === 'cal') renderCalendar();
     };
 
     function deleteTask() {
         const id = document.getElementById('taskId').value;
         if (confirm("このタスクを削除しますか？")) {
             appData.tasks = appData.tasks.filter(t => t.id !== id);
-            reassignNumbers(); saveApp(); closeTodoModal(); applyFilters();
-            if(currentTab === 'cal') renderCalendar();
+            reassignNumbers(); saveApp(); closeTodoModal(); applyFilters(); if(currentTab === 'cal') renderCalendar();
         }
     }
 
     function reassignNumbers() { appData.tasks.forEach((t, i) => t.no = i + 1); }
 
     function applyFilters() {
-        const word = document.getElementById('searchWord').value.toLowerCase();
-        const pri = document.getElementById('filterPriority').value;
-        const stat = document.getElementById('filterStatus').value;
-        const over = document.getElementById('filterOverdue').checked;
-        const today = new Date().toISOString().split('T')[0];
-
+        const word = document.getElementById('searchWord').value.toLowerCase(); const pri = document.getElementById('filterPriority').value; const stat = document.getElementById('filterStatus').value; const over = document.getElementById('filterOverdue').checked; const today = new Date().toISOString().split('T')[0];
         let filtered = appData.tasks.filter(t => {
             if (word && !`${t.title} ${t.detail} ${t.requester} ${t.category}`.toLowerCase().includes(word)) return false;
             if (pri !== "" && t.priority !== pri) return false;
@@ -621,7 +613,6 @@
             if (over && (!t.dueDate || t.dueDate >= today || t.status === '完了')) return false;
             return true;
         });
-
         if (sortKey && sortOrder) {
             filtered.sort((a, b) => {
                 let vA = a[sortKey] || ''; let vB = b[sortKey] || '';
@@ -638,10 +629,8 @@
         const isDefault = document.getElementById('searchWord').value==='' && sortKey==='';
 
         displayTasks.forEach(t => {
-            const tr = document.createElement('tr'); tr.dataset.id = t.id;
-            if(isDefault) tr.draggable = true;
-            if (t.status === '完了') tr.className = 'status-completed';
-            else if (t.status === '対応中') tr.className = 'status-working';
+            const tr = document.createElement('tr'); tr.dataset.id = t.id; if(isDefault) tr.draggable = true;
+            if (t.status === '完了') tr.className = 'status-completed'; else if (t.status === '対応中') tr.className = 'status-working';
             if (t.dueDate && t.dueDate < today && t.status !== '完了') tr.classList.add('overdue');
 
             tr.innerHTML = `
@@ -655,14 +644,10 @@
                 <td style="text-align:center;">${t.dueDate || ''}</td>
                 <td style="text-align:center;">${t.completionDate || ''}</td>
             `;
-            tr.onclick = (e) => { if(!e.target.classList.contains('drag-handle')) openTodoModal(t.id); };
-            body.appendChild(tr);
+            tr.onclick = (e) => { if(!e.target.classList.contains('drag-handle')) openTodoModal(t.id); }; body.appendChild(tr);
 
             const dTr = document.createElement('tr'); dTr.className = 'detail-print-row';
-            dTr.innerHTML = `<td colspan="8" style="white-space:normal; background:#f9f9f9; font-size:9pt; padding:5px 20px;">
-                <b>詳細:</b> ${t.detail || '-'} <br> <b>備考:</b> ${t.note || '-'}
-            </td>`;
-            body.appendChild(dTr);
+            dTr.innerHTML = `<td colspan="8" style="white-space:normal; background:#f9f9f9; font-size:9pt; padding:5px 20px;"><b>詳細:</b> ${t.detail || '-'} <br> <b>備考:</b> ${t.note || '-'}</td>`; body.appendChild(dTr);
         });
     }
 
@@ -670,13 +655,8 @@
         document.querySelectorAll('th[data-key]').forEach(th => {
             th.addEventListener('click', () => {
                 const key = th.dataset.key;
-                if (sortKey === key) {
-                    sortOrder = sortOrder === 'asc' ? 'desc' : (sortOrder === 'desc' ? '' : 'asc');
-                    if (!sortOrder) sortKey = '';
-                } else { sortKey = key; sortOrder = 'asc'; }
-                document.querySelectorAll('th').forEach(t => t.classList.remove('sort-asc', 'sort-desc'));
-                if(sortOrder) th.classList.add('sort-' + sortOrder);
-                applyFilters();
+                if (sortKey === key) { sortOrder = sortOrder === 'asc' ? 'desc' : (sortOrder === 'desc' ? '' : 'asc'); if (!sortOrder) sortKey = ''; } else { sortKey = key; sortOrder = 'asc'; }
+                document.querySelectorAll('th').forEach(t => t.classList.remove('sort-asc', 'sort-desc')); if(sortOrder) th.classList.add('sort-' + sortOrder); applyFilters();
             });
         });
     }
@@ -687,26 +667,17 @@
         body.addEventListener('dragstart', (e) => { dragSrcEl = e.target.closest('tr'); e.dataTransfer.effectAllowed = 'move'; dragSrcEl.style.opacity = '0.4'; });
         body.addEventListener('dragover', (e) => {
             e.preventDefault(); const target = e.target.closest('tr');
-            if (target && target !== dragSrcEl && !target.classList.contains('detail-print-row')) {
-                body.insertBefore(dragSrcEl, (e.clientY - target.getBoundingClientRect().top > target.offsetHeight / 2) ? target.nextSibling : target);
-            }
+            if (target && target !== dragSrcEl && !target.classList.contains('detail-print-row')) { body.insertBefore(dragSrcEl, (e.clientY - target.getBoundingClientRect().top > target.offsetHeight / 2) ? target.nextSibling : target); }
         });
         body.addEventListener('dragend', () => {
-            dragSrcEl.style.opacity = '1';
-            const rows = Array.from(body.querySelectorAll('tr:not(.detail-print-row)'));
-            appData.tasks = rows.map(r => appData.tasks.find(t => t.id === r.dataset.id));
-            reassignNumbers(); saveApp(); applyFilters();
+            dragSrcEl.style.opacity = '1'; const rows = Array.from(body.querySelectorAll('tr:not(.detail-print-row)'));
+            appData.tasks = rows.map(r => appData.tasks.find(t => t.id === r.dataset.id)); reassignNumbers(); saveApp(); applyFilters();
         });
     }
 
     function clearFilters() {
-        document.getElementById('searchWord').value = '';
-        document.getElementById('filterPriority').value = '';
-        document.getElementById('filterStatus').value = '';
-        document.getElementById('filterOverdue').checked = false;
-        sortKey = ''; sortOrder = ''; 
-        document.querySelectorAll('th').forEach(t => t.classList.remove('sort-asc', 'sort-desc'));
-        applyFilters();
+        document.getElementById('searchWord').value = ''; document.getElementById('filterPriority').value = ''; document.getElementById('filterStatus').value = ''; document.getElementById('filterOverdue').checked = false;
+        sortKey = ''; sortOrder = ''; document.querySelectorAll('th').forEach(t => t.classList.remove('sort-asc', 'sort-desc')); applyFilters();
     }
 
     // --- Export / Import / Print ---
@@ -719,22 +690,13 @@
 
     function importData(e) {
         document.getElementById('settings-menu').classList.remove('show');
-        const r = new FileReader();
-        r.onload = (ev) => {
-            try { appData = JSON.parse(ev.target.result); saveApp(); location.reload(); }
-            catch(err) { alert('読み込みに失敗しました。'); }
-        };
-        r.readAsText(e.target.files[0]);
+        const r = new FileReader(); r.onload = (ev) => { try { appData = JSON.parse(ev.target.result); saveApp(); location.reload(); } catch(err) { alert('読み込みに失敗しました。'); } }; r.readAsText(e.target.files[0]);
     }
 
     function printApp(detail) {
         document.getElementById('settings-menu').classList.remove('show');
-        // ヘッダーに年月を表示するかどうか（カレンダー時のみ）
-        document.getElementById('print-ym-display').textContent = currentTab === 'cal' ? 
-            `${document.getElementById('calYear').value}年 ${document.getElementById('calMonth').value}月` : '';
-            
-        if(detail && currentTab === 'todo') document.body.classList.add('print-detailed');
-        else document.body.classList.remove('print-detailed');
+        document.getElementById('print-ym-display').textContent = currentTab === 'cal' ? `${document.getElementById('calYear').value}年 ${document.getElementById('calMonth').value}月` : '';
+        if(detail && currentTab === 'todo') document.body.classList.add('print-detailed'); else document.body.classList.remove('print-detailed');
         setTimeout(() => { window.print(); }, 100);
     }
 </script>
